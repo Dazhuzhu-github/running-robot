@@ -1,3 +1,7 @@
+'''
+    目前处于报废阶段，勿用
+'''
+
 import os
 import sys
 import cv2 as cv
@@ -14,15 +18,19 @@ QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True) #use h
 
 img_path = []
 imgs = []
+view_size = 300
 
 
-def _auto_scale(img, gray=True, c=300):
-    if gray:
-        try:
-            img = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
-        except:
-            pass
+def BGR2GRAY(img):
+    return cv.cvtColor(img, cv.COLOR_BGR2GRAY)
 
+
+def BGR2H(img):
+    return cv.cvtColor(img, cv.COLOR_BGR2HSV)[:, :, 0]
+
+def _auto_scale(img, color=BGR2GRAY):
+    if color is not None:
+        img = color(img)
     h, w = None, None
     if len(img.shape) == 2:
         h, w = img.shape
@@ -31,17 +39,17 @@ def _auto_scale(img, gray=True, c=300):
     else:
         raise ValueError
 
-    coef = min(h, w) / c
+    coef = min(h, w) / view_size
     h = int(h / coef)
     w = int(w / coef)
     img = cv.resize(img, (w, h))
     return img, coef
 
 
-def _view(img, resize=True, c=300):
+def _view(img, resize=True):
     img_ = None
     if resize:
-        img_, _ = _auto_scale(img, gray=False, c=c)
+        img_, _ = _auto_scale(img, color=None)
     else:
         img_ = img
     cv.imshow('view', img_)
@@ -50,17 +58,21 @@ def _view(img, resize=True, c=300):
     return
 
 
-def transform(img, kernel=(5, 5), std=2):
-    img, coef = _auto_scale(img)
+def transform(img, kernel=(5, 5), std=2, color=BGR2GRAY, **argw):
+    img, coef = _auto_scale(img, color=color)
     if kernel is not None:
         img = cv.GaussianBlur(img, kernel, std)
+    _view(img)
     return img, coef
 
 
 def hough_detect(img, **argw):
     # img, method, dp, minDist, param1, param2, minRadius, maxRadius
-    img, coef = transform(img)
-    circles = cv.HoughCircles(img, **argw)
+    argw_ = dict(argw)
+    trans = argw_.pop('transform')
+    img, coef = trans['func'](img, **trans['argw'])
+    # img, coef = transform(trans, **argw_)
+    circles = cv.HoughCircles(img, **argw_)
     return circles if circles is None else circles * coef
 
 
@@ -110,35 +122,57 @@ def stack_detect(img, params):
     num = len(params)
     shape = img.shape[0:2]
     flag_img = np.zeros(shape)   # grey
-
-    for param in params:
+    coef = min(shape) / view_size
+    print('Detect...')
+    for idx, param in enumerate(params):
         param_ = dict(param)
         method = param_.pop('detect')
         circles = method(img, **param_)
         if circles is None:
             continue
         tmp_img = np.zeros(shape)
-        for circle in circles[:, 0, :]:
+        for circle in circles[0, :, :]:
             x, y, r = circle
             cv.circle(tmp_img, (x, y), 0, 1, int(r))
-            print(int(r))
+            print(f'{idx}: {x/coef},{y/coef},{r/coef}')
         flag_img += tmp_img
     flag_img /= num
     # if flag_img.max() >1e-5:
     #     print(flag_img.max())
     #     pass
-    _view(img)
-    _view(flag_img)        
+    _view(img)  
+    _view(flag_img)
+    _view(img)        
         
 
 if __name__ == '__main__':
     path = os.path.dirname(os.path.dirname(sys.argv[0])) + r'\data' 
     prepare(path)
+    trans_h = {
+        'func': transform,
+        'argw': {
+            #'kernel': None
+            'color': BGR2H
+        }
+    }
+    trans_gray = {
+        'func': transform,
+        'argw': {
+        }
+    }
     params = [
-        dict(detect=hough_detect, dp=1.5, minDist=50, method=cv.HOUGH_GRADIENT_ALT, minRadius=20, maxRadius=80, param1=25, param2=0.9),
-        dict(detect=hough_detect, dp=1.5, minDist=50, method=cv.HOUGH_GRADIENT_ALT, minRadius=20, maxRadius=80, param1=25, param2=0.6),
-        dict(detect=hough_detect, dp=1, minDist=20, method=cv.HOUGH_GRADIENT, minRadius=30, maxRadius=90, param1=50, param2=25),
+        #dict(detect=hough_detect, transform=trans_gray, dp=1, minDist=20, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=90, param1=150, param2=35),
+        dict(detect=hough_detect, transform=trans_h, dp=1, minDist=20, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=90, param1=200, param2=25),
+
+        # past:
+        # dict(detect=hough_detect, dp=1.5, minDist=50, method=cv.HOUGH_GRADIENT_ALT, minRadius=20, maxRadius=80, param1=25, param2=0.9),
+        # dict(detect=hough_detect, dp=1.5, minDist=50, method=cv.HOUGH_GRADIENT_ALT, minRadius=20, maxRadius=80, param1=25, param2=0.6),
+        # dict(detect=hough_detect, transform=trans1, dp=1, minDist=20, method=cv.HOUGH_GRADIENT, minRadius=30, maxRadius=90, param1=50, param2=25),
+        # dict(detect=hough_detect, transform=trans1, dp=1, minDist=20, method=cv.HOUGH_GRADIENT, minRadius=30, maxRadius=90, param1=75, param2=25),
+        # dict(detect=hough_detect, transform=trans1, dp=1, minDist=20, method=cv.HOUGH_GRADIENT, minRadius=30, maxRadius=90, param1=100, param2=25),
+        # dict(detect=hough_detect, transform=trans1, dp=1, minDist=20, method=cv.HOUGH_GRADIENT, minRadius=30, maxRadius=90, param1=150, param2=25),
     ]
-    for img in imgs:
+    for idx, img in enumerate(imgs):
         # _view(img, resize=False)
+        print(f'{img_path[idx]}')
         stack_detect(img, params)
