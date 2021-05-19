@@ -339,40 +339,45 @@ def detect(readimg):
     feature_img1 = cg1(readimg)
     feature_img2 = cg2(readimg)
     feature_img3 = cg3(readimg)
-    # _view(feature_img1)
-    # _view(feature_img2)
-    # _view(feature_img3)
+    _view(feature_img1)
+    _view(feature_img2)
+    _view(feature_img3)
     alpha = 0.5
     beta = 0.5
     gamma = 0
     img_add = cv.addWeighted(feature_img1, alpha, feature_img2, beta, gamma)
     img_add2 = cv.addWeighted(img_add, 0.67, feature_img3, 0.33, gamma)
-    #F_view(img_add2)
+    _view(img_add2)
     final = np.array(img_add2*255, dtype = np.uint8)
     #final = img_add2*180
+    final[final<final.max()] = 0
     circles = cv.HoughCircles(final, dp=1.5, minDist=100, method=cv.HOUGH_GRADIENT, 
     minRadius=20, maxRadius=60, param1=25, param2=9)
     if circles is not None:
         x, y, r = circles[0, 0, :]
-        return r, x, y
-        #print(r,x,y)
+        print(r,x,y)
+        #return r, x, y
+        cv.circle(readimg,(x,y), int(r), (0,0,255), -1)
+        cv.imshow('image', readimg)
+        cv.waitKey (0) # 显示 10000 ms 即 10s 后消失
+        cv.destroyAllWindows()
 
     
-# if __name__ == '__main__':
-# 	path = os.path.dirname(os.path.dirname(sys.argv[0])) + r'\data' 
-# 	path_list = os.listdir(path) #遍历整个文件夹下的文件name并返回一个列表
-# 	print(path_list)
-# 	dataset = Dataset(path)
-# 	dataset.load()
-# 	# cg = ClassifierGroup([
-# 	# 	Classifier(modules1)
-# 	# ])
-# 	for i, img in enumerate(dataset):
-# 		detect(img)
-# 	# 	coef = feature_img.shape[0] / img.shape[0]
-# 	# 	_view(feature_img)
-# 	# 	_view(img)
-# 	# 	# result = input()
-# 	# 	# with open('DetectFilters.txt','a') as f:
-# 	# 	# 	f.write(path_list[i]+' '+result+'\n')
-# 	pass
+if __name__ == '__main__':
+	path = os.path.dirname(os.path.dirname(sys.argv[0])) + r'\data' 
+	path_list = os.listdir(path) #遍历整个文件夹下的文件name并返回一个列表
+	print(path_list)
+	dataset = Dataset(path)
+	dataset.load()
+	# cg = ClassifierGroup([
+	# 	Classifier(modules1)
+	# ])
+	for i, img in enumerate(dataset):
+		detect(img)
+	# 	coef = feature_img.shape[0] / img.shape[0]
+	# 	_view(feature_img)
+	# 	_view(img)
+	# 	# result = input()
+	# 	# with open('DetectFilters.txt','a') as f:
+	# 	# 	f.write(path_list[i]+' '+result+'\n')
+	pass
