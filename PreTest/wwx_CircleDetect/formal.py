@@ -41,8 +41,32 @@ class CvtColor(Transform):
 		"""
 		if self.type == 'BGR2GRAY':
 			return cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+		elif self.type == 'BGR2B-G':
+			img = img[:, :, 0] - img[:, :, 1]
+			img[img<=0] = 0
+			return img
+		elif self.type == 'BGR2G-R':
+			img = img[:, :, 1] - img[:, :, 2]
+			img[img<=0] = 0
+			return img
+		elif self.type == 'BGR2R-B':
+			img = img[:, :, 2] - img[:, :, 0]
+			img[img<=0] = 0
+			return img
+		elif self.type == 'BGR2B':
+			return img[:, :, 0]
+		elif self.type == 'BGR2G':
+			return img[:, :, 1]
+		elif self.type == 'BGR2R':
+			return img[:, :, 2]
 		elif self.type == 'BGR2H':
-			return cv.cvtColor(img, cv.COLOR_BGR2HSV)[:, :, 0]
+			return cv.cvtColor(img, cv.COLOR_BGR2HSV)[:, :, 0] 
+		elif self.type == 'BGR2S':
+			return cv.cvtColor(img, cv.COLOR_BGR2HSV)[:, :, 1]
+		elif self.type == 'BGR2V':
+			return cv.cvtColor(img, cv.COLOR_BGR2HSV)[:, :, 2]
+		else:
+			raise NotImplementedError
 
 
 class AutoScale(Transform):
@@ -267,7 +291,7 @@ class ClassifierGroup:
 
 modules1 = ModuleList([
 	AutoScale(),
-	CvtColor('BGR2GRAY'),
+	CvtColor('BGR2R-B'),
 	Blur('Gaussian', ksize=(5, 5), sigmaX=2),
 	Hook(_view),
 	HoughCircle(dp=1, minDist=20, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=90, param1=200, param2=25)
@@ -276,14 +300,21 @@ modules1 = ModuleList([
 
 if __name__ == '__main__':
 	path = os.path.dirname(os.path.dirname(sys.argv[0])) + r'\data' 
+	path_list = os.listdir(path) #遍历整个文件夹下的文件name并返回一个列表
+	print(path_list)
 	dataset = Dataset(path)
 	dataset.load()
 	cg = ClassifierGroup([
 		Classifier(modules1)
 	])
+	i=0
 	for img in dataset:
 		feature_img = cg(img)
 		coef = feature_img.shape[0] / img.shape[0]
 		_view(feature_img)
 		_view(img)
+		result = input()
+		with open('DetectFilters.txt','a') as f:
+			f.write(path_list[i]+' '+result+'\n')
+		i = i+1
 	pass
