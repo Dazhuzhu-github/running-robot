@@ -294,7 +294,7 @@ modules1 = ModuleList([
 	CvtColor('BGR2R-B'),
 	Blur('Gaussian', ksize=(5, 5), sigmaX=2),
 	Hook(_view),
-	HoughCircle(dp=1, minDist=20, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=90, param1=200, param2=25)
+	HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=200, param2=25)
 ])
 
 
@@ -307,14 +307,12 @@ if __name__ == '__main__':
 	cg = ClassifierGroup([
 		Classifier(modules1)
 	])
-	i=0
-	for img in dataset:
+	for i, img in enumerate(dataset):
 		feature_img = cg(img)
 		coef = feature_img.shape[0] / img.shape[0]
 		_view(feature_img)
 		_view(img)
-		result = input()
-		with open('DetectFilters.txt','a') as f:
-			f.write(path_list[i]+' '+result+'\n')
-		i = i+1
+		# result = input()
+		# with open('DetectFilters.txt','a') as f:
+		# 	f.write(path_list[i]+' '+result+'\n')
 	pass
