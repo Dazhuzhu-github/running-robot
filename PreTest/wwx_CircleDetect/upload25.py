@@ -1,10 +1,12 @@
 import os
-if os.path.exists('local'):
+import sys
+
+LOCAL_PATH = os.path.join(os.path.dirname(sys.argv[0]), 'local')
+
+if os.path.exists(LOCAL_PATH):
 	LOCAL = True
 	import cv2 as cv
 	import numpy as np
-	import os
-	import sys
 	import cv2 as cv
 	import numpy as np
 	import matplotlib
@@ -374,26 +376,6 @@ def detect(readimg):
 	return 0, 0, 0
 
 	
-if __name__ == '__main__' and LOCAL:
-	path = os.path.dirname(os.path.dirname(sys.argv[0])) + r'\data' 
-	path_list = os.listdir(path) #遍历整个文件夹下的文件name并返回一个列表
-	print(path_list)
-	dataset = Dataset(path)
-	dataset.load()
-	# cg = ClassifierGroup([
-	# 	Classifier(modules1)
-	# ])
-	for i, img in enumerate(dataset):
-		detect(img)
-	# 	coef = feature_img.shape[0] / img.shape[0]
-	# 	_view(feature_img)
-	# 	_view(img)
-	# 	# result = input()
-	# 	# with open('DetectFilters.txt','a') as f:
-	# 	# 	f.write(path_list[i]+' '+result+'\n')
-	pass
-
-
 def transform(img):
 	img = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
 	h, w = img.shape
@@ -411,10 +393,22 @@ def transform(img):
 	img = cv.GaussianBlur(img, (5, 5), 2)
 	return img, coef
 
-def detect_brench(img):
+
+def detect_base(img):
 	img, coef = transform(img)
 	circles = cv.HoughCircles(img, dp=1.5, minDist=50, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=60, param1=100, param2=25)
 	if circles is not None:
 		x, y, r = circles[0, 0, :]
 		return int(r*coef), int(x*coef), int(y*coef)
 	return 0, 0, 0 
+
+
+if __name__ == '__main__' and LOCAL:
+	path = os.path.dirname(os.path.dirname(sys.argv[0])) + r'\data' 
+	path_list = os.listdir(path) #遍历整个文件夹下的文件name并返回一个列表
+	print(path_list)
+	dataset = Dataset(path)
+	dataset.load()
+	for i, img in enumerate(dataset):
+		detect(img)
+	pass

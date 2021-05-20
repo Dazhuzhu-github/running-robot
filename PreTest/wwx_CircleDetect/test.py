@@ -7,8 +7,6 @@ import score25 as my2
 import pandas as pd
 
 
-
-
 if __name__ == '__main__':
 	path = os.path.dirname(os.path.dirname(sys.argv[0])) + r'\data' 
 	path_list = os.listdir(path) #遍历整个文件夹下的文件name并返回一个列表

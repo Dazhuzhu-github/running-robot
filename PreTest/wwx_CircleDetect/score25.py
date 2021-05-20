@@ -1,43 +1,19 @@
-# try:
-# 	np.array()
-# 	LOCALLLLL = False
-# except NameError:
-	# import cv2 as cv
-	# import numpy as np
-	# import os
-	# import sys
-	# import cv2 as cv
-	# import numpy as np
-	# import matplotlib
-	# import  matplotlib.pyplot as plt
-
-	# import sys
-	# from PyQt5 import QtWidgets, QtCore, QtGui #pyqt stuff
-
-	# QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True) #enable highdpi scaling
-	# QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True) #use highdpi icons
-
-	# LOCALLLLL = True
-
 import os
-if os.path.exists('local'):
+import sys
+
+LOCAL_PATH = os.path.join(os.path.dirname(sys.argv[0]), 'local')
+
+if os.path.exists(LOCAL_PATH):
 	LOCAL = True
 	import cv2 as cv
 	import numpy as np
-	import os
-	import sys
 	import cv2 as cv
 	import numpy as np
 	import matplotlib
 	import  matplotlib.pyplot as plt
-
-	import sys
 	from PyQt5 import QtWidgets, QtCore, QtGui #pyqt stuff
-
 	QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True) #enable highdpi scaling
 	QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True) #use highdpi icons
-
-	LOCALLLLL = True
 else:
 	LOCAL = False
 
@@ -65,5 +41,3 @@ def detect(img):
 		x, y, r = circles[0, 0, :]
 		return int(r*coef), int(x*coef), int(y*coef)
 	return 0, 0, 0 
-
-print(LOCAL)
