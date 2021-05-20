@@ -1,20 +1,25 @@
-from ctypes import c_double
 import os
 import sys
-from tokenize import Double
-import cv2 as cv
-import numpy as np
-import matplotlib
-import  matplotlib.pyplot as plt
 
-import sys
-from PyQt5 import QtWidgets, QtCore, QtGui #pyqt stuff
+LOCAL_PATH = os.path.join(os.path.dirname(sys.argv[0]), 'local')
 
-QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True) #enable highdpi scaling
-QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True) #use highdpi icons
-
+if os.path.exists(LOCAL_PATH):
+	LOCAL = True
+	import cv2 as cv
+	import numpy as np
+	import cv2 as cv
+	import numpy as np
+	import matplotlib
+	import  matplotlib.pyplot as plt
+	from PyQt5 import QtWidgets, QtCore, QtGui #pyqt stuff
+	QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True) #enable highdpi scaling
+	QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True) #use highdpi icons
+else:
+	LOCAL = False
 
 def _view(img, resize=True, size=300):
+	if not LOCAL:
+		return
 	if resize:
 		img = AutoScale(size)(img)
 	cv.imshow('view', img)
@@ -87,11 +92,6 @@ class AutoScale(Transform):
 		img = cv.resize(img, (w, h))
 		return img
 
-	@staticmethod
-	def get_coef(img, size):
-		# 计算图片缩放系数
-		return min(img.shape) / size
-
 
 class Blur(Transform):
 	def __init__(self, type: str, **argw):
@@ -129,7 +129,8 @@ class HoughCircle(Detect):
 
 	def _detect(self, img, method, dp, minDist, param1, param2, minRadius, maxRadius, **argw):
 		# arg_list = ['method', 'dp', 'minDist', 'param1', 'param2', 'minRadius', 'maxRadius']
-		return cv.HoughCircles(img, 
+		img = img.astype(np.uint8)
+		circles =  cv.HoughCircles(img, 
 			method=method, 
 			dp=dp, 
 			minDist=minDist, 
@@ -137,22 +138,31 @@ class HoughCircle(Detect):
 			param2=param2, 
 			minRadius=minRadius, 
 			maxRadius=maxRadius)
+		return np.array([0., 0., 0.]).reshape([1, 1, 3]) if circles is None else circles
 
 
 class Hook:
+	Param = {}
 	def __init__(self, callback, **argw):
 		"""
 			Hook类：勾取forward运算过程中的信息；
 			callback: 回调函数
+			func: 处理x的函数
 			argw: 回调函数参数
 		"""
 		self.callback = callback
 		self.params = argw
 
 	def __call__(self, x):
-		self.callback(x, **self.params)
+		x_ = x
+		self.callback(x_, **self.params)
 		# 执行回调函数，但返回x本身
 		return x
+
+	@staticmethod
+	def hook_img(img, **argw):
+		name = argw['img_name'] if 'img_name' in argw else 'img'
+		Hook.Param[name] = img
 
 
 class ModuleList:
@@ -202,6 +212,7 @@ class Paint:
 
 class CircleLayer(Paint):
 	def __init__(self, circles=None):
+		# self.circles.shape == (1, circle_num, 3)
 		if isinstance(circles, CircleLayer):
 			self.circles = np.ndarray(circles.circles)
 		elif isinstance(circles, np.ndarray):
@@ -219,7 +230,7 @@ class CircleLayer(Paint):
 		assert(self.circles.shape[0] == 1)
 		for circle in self.circles[0, :, :]:
 			x, y, r = circle
-			cv.circle(img, (x, y), int(r), color, -1)
+			cv.circle(img, (int(x), int(y)), int(r), color, -1)
 		return img
 
 
@@ -289,30 +300,115 @@ class ClassifierGroup:
 		return feature_img
 
 
-modules1 = ModuleList([
-	AutoScale(),
-	CvtColor('BGR2R-B'),
-	Blur('Gaussian', ksize=(5, 5), sigmaX=2),
-	Hook(_view),
-	HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=200, param2=25)
-])
+# modules1 = ModuleList([
+# 	AutoScale(),
+# 	CvtColor('BGR2GRAY'),
+# 	Blur('Gaussian', ksize=(5, 5), sigmaX=2),
+# 	#Hook(_view),
+# 	HoughCircle(dp=1.5, minDist=50, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=200, param2=25)
+# ])
+
+def detect(readimg):
+	modules1 = ModuleList([
+		AutoScale(),
+		CvtColor('BGR2B-G'),
+		Blur('Gaussian', ksize=(5, 5), sigmaX=2),
+		#Hook(_view),
+		Hook(Hook.hook_img),
+		HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=200, param2=25)
+	])
+
+	modules2 = ModuleList([
+		AutoScale(),
+		CvtColor('BGR2G-R'),
+		Blur('Gaussian', ksize=(5, 5), sigmaX=2),
+		#Hook(_view),
+		HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=200, param2=25)
+	])
+
+	modules3 = ModuleList([
+		AutoScale(),
+		CvtColor('BGR2GRAY'),
+		Blur('Gaussian', ksize=(5, 5), sigmaX=2),
+		#Hook(_view),
+		HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=200, param2=25)
+	])
+
+	modulesF = ModuleList([
+		AutoScale(),
+		CvtColor('BGR2GRAY'),
+		Blur('Gaussian', ksize=(5, 5), sigmaX=2),
+		#Hook(_view),
+		HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=200, param2=25)
+	])
+
+	cg = ClassifierGroup([
+		Classifier(modules1),
+		Classifier(modules2),
+		Classifier(modules3)
+	])
+
+	vote = Classifier(
+		ModuleList([
+			AutoScale(),
+			HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=50, param2=10)
+		])
+	)
+
+	feature_img = cg(readimg)
+	_view(feature_img)
+	feature_img = (cg(readimg) * 255).astype(np.uint8)
+	feature_img[feature_img < feature_img.max()] = 0
+	# feature_img = vote(feature_img)
+	# _view(feature_img)
+	# circles = cv.HoughCircles(feature_img, dp=1.5, minDist=100, method=cv.HOUGH_GRADIENT, 
+	# minRadius=5, maxRadius=100, param1=25, param2=9)
+	circles = vote(feature_img).circles
+	if circles is not None:
+		print(circles.shape)
+		x, y, r = circles[0, 0, :]
+		#print(r,x,y)
+		return r, x, y
+		# cv.circle(readimg,(x,y), int(r), (0,0,255), -1)
+		# cv.imshow('image', readimg)
+		# cv.waitKey (0) # 显示 10000 ms 即 10s 后消失
+		# cv.destroyAllWindows()
+	return 0, 0, 0
+
+	
+def transform(img):
+	img = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+	h, w = img.shape
+	c = 300
+	coef = None
+	if h > w:
+		coef = w / c
+		h = int(h / w * c)
+		w = c
+	else:
+		coef = h / c
+		w = int(w / h * c)
+		h = c
+	img = cv.resize(img, (w, h))
+	img = cv.GaussianBlur(img, (5, 5), 2)
+	return img, coef
 
 
-if __name__ == '__main__':
+def detect_base(img):
+	img, coef = transform(img)
+	circles = cv.HoughCircles(img, dp=1.5, minDist=50, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=60, param1=100, param2=25)
+	if circles is not None:
+		x, y, r = circles[0, 0, :]
+		return int(r*coef), int(x*coef), int(y*coef)
+	return 0, 0, 0 
+
+
+if __name__ == '__main__' and LOCAL:
 	path = os.path.dirname(os.path.dirname(sys.argv[0])) + r'\data' 
 	path_list = os.listdir(path) #遍历整个文件夹下的文件name并返回一个列表
 	print(path_list)
 	dataset = Dataset(path)
 	dataset.load()
-	cg = ClassifierGroup([
-		Classifier(modules1)
-	])
 	for i, img in enumerate(dataset):
-		feature_img = cg(img)
-		coef = feature_img.shape[0] / img.shape[0]
-		_view(feature_img)
-		_view(img)
-		# result = input()
-		# with open('DetectFilters.txt','a') as f:
-		# 	f.write(path_list[i]+' '+result+'\n')
+		detect(img)
 	pass
