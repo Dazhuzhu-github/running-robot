@@ -9,8 +9,6 @@ if os.path.exists(LOCAL_PATH):
 	LOCAL = True
 	import cv2 as cv
 	import numpy as np
-	import cv2 as cv
-	import numpy as np
 	import matplotlib
 	import  matplotlib.pyplot as plt
 	from PyQt5 import QtWidgets, QtCore, QtGui #pyqt stuff

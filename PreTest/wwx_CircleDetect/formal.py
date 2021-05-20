@@ -1,14 +1,15 @@
 # path: /formal
 
+from abc import abstractmethod
 import os
 import sys
+from abc import ABCMeta, abstractmethod, ABC
 
 LOCAL_PATH = os.path.join(os.path.dirname(sys.argv[0]), 'local')
+VIEW = 1
 
 if os.path.exists(LOCAL_PATH):
 	LOCAL = True
-	import cv2 as cv
-	import numpy as np
 	import cv2 as cv
 	import numpy as np
 	import matplotlib
@@ -19,15 +20,32 @@ if os.path.exists(LOCAL_PATH):
 else:
 	LOCAL = False
 
-def _view(img, resize=True, size=300):
-	if not LOCAL:
+def _view(img, name='view', resize=True, size=300):
+	if not LOCAL or not VIEW:
 		return
 	if resize:
 		img = AutoScale(size)(img)
-	cv.imshow('view', img)
+	cv.imshow(name, img)
 	cv.waitKey(0)
-	cv.destroyWindow('view')
+	cv.destroyWindow(name)
 	return
+
+class View:
+	def __init__(self, type):
+		global VIEW
+		self.type = type
+		self.last = VIEW
+
+	def __enter__(self):
+		global VIEW
+		VIEW = self.type
+
+	def __exit__(self, exc_type, exc_val, exc_tb):
+		global VIEW
+		VIEW = self.last
+
+	def no_view():
+		return View(0)
 
 
 class Transform:
@@ -140,31 +158,36 @@ class HoughCircle(Detect):
 			param2=param2, 
 			minRadius=minRadius, 
 			maxRadius=maxRadius)
-		return np.array([0., 0., 0.]).reshape([1, 1, 3]) if circles is None else circles
+		return CircleLayer(circles)
 
 
 class Hook:
-	Param = {}
-	def __init__(self, callback, **argw):
+	cache = {}
+	last = None
+	def __init__(self, callback, *args, **argw):
 		"""
 			Hook类：勾取forward运算过程中的信息；
 			callback: 回调函数
-			func: 处理x的函数
-			argw: 回调函数参数
+			args, argw: 回调函数参数
 		"""
-		self.callback = callback
-		self.params = argw
+		self.callback = callback if callback is not None else lambda x: x	# 回调函数
+		self.args = args
+		self.argw = argw			# 函数参数
 
 	def __call__(self, x):
 		x_ = x
-		self.callback(x_, **self.params)
+		Hook.last = self.callback(x_, *self.args, **self.argw)
 		# 执行回调函数，但返回x本身
 		return x
 
-	@staticmethod
-	def hook_img(img, **argw):
-		name = argw['img_name'] if 'img_name' in argw else 'img'
-		Hook.Param[name] = img
+	def call_x(self, x, *args, **argw):
+		return x(*args, **argw)
+
+	def hook(self, x, name=None, *args, **argw):
+		if name is None:
+			raise ValueError('"name" should not be None')
+		Hook.cache[name] = x
+		return x
 
 
 class ModuleList:
@@ -207,7 +230,7 @@ class Dataset:
 		return len(self.imgs)
 
 
-class Paint:
+class Paint(ABC):
 	def __init__(self):
 		pass
 
@@ -216,16 +239,23 @@ class CircleLayer(Paint):
 	def __init__(self, circles=None):
 		# self.circles.shape == (1, circle_num, 3)
 		if isinstance(circles, CircleLayer):
-			self.circles = np.ndarray(circles.circles)
+			self.circles = circles.circles.copy()
 		elif isinstance(circles, np.ndarray):
 			assert(circles.shape[0] == 1)
 			self.circles = circles
 		elif circles is None:
+			# self.circles = np.array([-1 ,-1, 0.]).reshape([1, 1, 3])
 			self.circles = None
 		else:
 			raise TypeError
 
-	def __call__(self, shape, color=1):
+	def __call__(self, x, color=1):
+		if isinstance(x, np.ndarray):
+			shape = x.shape[0:2]
+		elif isinstance(x, tuple):
+			shape = x
+		else:
+			raise TypeError
 		img = np.zeros(shape, dtype=np.float)
 		if self.circles is None:
 			return img
@@ -234,6 +264,18 @@ class CircleLayer(Paint):
 			x, y, r = circle
 			cv.circle(img, (int(x), int(y)), int(r), color, -1)
 		return img
+
+	def __mul__(self, times):
+		if self.circles is None:
+			return CircleLayer()
+		else:
+			return CircleLayer(self.circles * times)
+
+	def __rmul__(self, times):
+		if self.circles is None:
+			return CircleLayer()
+		else:
+			return CircleLayer(self.circles * times)
 
 
 class CircleModule(Paint):
@@ -282,15 +324,13 @@ class Classifier:
 				coef = min(shape) / module.size
 			img = module(img)
 		# 返回绘制出的圆，原图片大小
-		return CircleLayer() if img is None else CircleLayer(img * coef)
+		return img * coef
 
 
 class ClassifierGroup:
 	def __init__(self, classifiers: list, **argw):
 		if isinstance(classifiers, list):
 			self.classifiers = classifiers
-		# elif isinstance(classifiers, Classifier):
-		# 	self.classifiers = []
 		else:
 			raise TypeError
 
@@ -301,30 +341,27 @@ class ClassifierGroup:
 		feature_img = features(img.shape)
 		return feature_img
 
+	def __getitem__(self, idx):
+		return self.classifiers[idx]
 
-# modules1 = ModuleList([
-# 	AutoScale(),
-# 	CvtColor('BGR2GRAY'),
-# 	Blur('Gaussian', ksize=(5, 5), sigmaX=2),
-# 	#Hook(_view),
-# 	HoughCircle(dp=1.5, minDist=50, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=200, param2=25)
-# ])
+	def __len__(self):
+		return len(self.classifiers)
 
-def detect(readimg):
+
+def detect(img):
 	modules1 = ModuleList([
 		AutoScale(),
 		CvtColor('BGR2B-G'),
 		Blur('Gaussian', ksize=(5, 5), sigmaX=2),
-		#Hook(_view),
-		Hook(Hook.hook_img),
-		HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=200, param2=25)
+		Hook(_view, 'B-G'),
+		HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=200, param2=25),
 	])
 
 	modules2 = ModuleList([
 		AutoScale(),
 		CvtColor('BGR2G-R'),
 		Blur('Gaussian', ksize=(5, 5), sigmaX=2),
-		#Hook(_view),
+		Hook(_view, 'G-R'),
 		HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=200, param2=25)
 	])
 
@@ -332,7 +369,7 @@ def detect(readimg):
 		AutoScale(),
 		CvtColor('BGR2GRAY'),
 		Blur('Gaussian', ksize=(5, 5), sigmaX=2),
-		#Hook(_view),
+		Hook(_view, 'GRAY'),
 		HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=200, param2=25)
 	])
 
@@ -340,7 +377,7 @@ def detect(readimg):
 		AutoScale(),
 		CvtColor('BGR2GRAY'),
 		Blur('Gaussian', ksize=(5, 5), sigmaX=2),
-		#Hook(_view),
+		Hook(_view, 'GRAY'),
 		HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=200, param2=25)
 	])
 
@@ -357,24 +394,23 @@ def detect(readimg):
 		])
 	)
 
-	feature_img = cg(readimg)
-	_view(feature_img)
-	feature_img = (cg(readimg) * 255).astype(np.uint8)
+	for c in cg:
+		circles = c(img)
+		img_ = circles(img)
+		_view(img_)
+	
+	with View.no_view():
+		feature_img = cg(img)
+	_view(feature_img, 'before')
 	feature_img[feature_img < feature_img.max()] = 0
-	# feature_img = vote(feature_img)
-	# _view(feature_img)
-	# circles = cv.HoughCircles(feature_img, dp=1.5, minDist=100, method=cv.HOUGH_GRADIENT, 
-	# minRadius=5, maxRadius=100, param1=25, param2=9)
+	coef = 255 / feature_img.max()
+	feature_img = (feature_img * coef).astype(np.uint8)
+	_view(feature_img, 'after')
 	circles = vote(feature_img).circles
 	if circles is not None:
 		print(circles.shape)
 		x, y, r = circles[0, 0, :]
-		#print(r,x,y)
 		return r, x, y
-		# cv.circle(readimg,(x,y), int(r), (0,0,255), -1)
-		# cv.imshow('image', readimg)
-		# cv.waitKey (0) # 显示 10000 ms 即 10s 后消失
-		# cv.destroyAllWindows()
 	return 0, 0, 0
 
 	

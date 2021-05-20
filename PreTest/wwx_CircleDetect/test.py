@@ -2,8 +2,7 @@ import os
 import sys
 import cv2 as cv
 import numpy as np
-import upload25 as my
-import score25 as my2
+import formal as my
 import pandas as pd
 
 
@@ -16,4 +15,4 @@ if __name__ == '__main__':
 	for img in dataset:
 		r, x, y = my.detect(img)
 		cv.circle(img, (int(x), int(y)), int(r), (0, 0, 255), -1)
-		my._view(img)
+		my._view(img, 'result')
