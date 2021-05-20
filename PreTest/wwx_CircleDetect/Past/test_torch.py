@@ -1,3 +1,5 @@
+# path: /torch
+
 import subprocess
 
 def detect(img):
