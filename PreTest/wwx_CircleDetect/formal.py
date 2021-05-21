@@ -319,6 +319,30 @@ class CircleModule(Paint):
 		else:
 			raise TypeError
 
+	def choose(self, shape, num=None):
+		shape = shape[0:2]
+		img = np.zeros(shape)
+		# num = 0 #cluster_list里的第几个
+		# i = 0	#计数i
+		# sum = 0	#count layer里circle的个数
+		circle_nums = np.array([circle_layer.circles.shape[1] for circle_layer in self.layers], dtype=np.int)
+		# for layer in self.layers:
+		# 	layer : CircleLayer
+		# 	n = layer.circles.shape
+		# 	if(sum < n[1]):
+		# 		sum = n[1]
+		# 		num = i
+		# 	i = i+1
+		# n = self.layers[num].shape
+		# color = 1/num if num is not None else 1/n[1]
+		if len(circle_nums) == 0:
+			return img
+		else:
+			idx = np.argmax(circle_nums)
+			color = 1/num if num is not None else 1/circle_nums[idx]
+			img += self.layers[idx](shape, color)
+			return img
+
 	def __call__(self, shape, num=None):
 		# 涂色的深浅
 		color = 1/num if num is not None else 1/len(self.layers)
@@ -344,6 +368,8 @@ class CircleModule(Paint):
 		cluster_list = []
 		for circlelayer in self.layers:
 			circlelayer : CircleLayer
+			if circlelayer.circles is None:
+				continue
 			for circle in circlelayer.circles[0, :, :]:
 				#circle = [x,y,r]
 				d = circle
@@ -363,7 +389,7 @@ class CircleModule(Paint):
 							circle_d.circles = np.append(circle_d.circles, d)
 							circle_d.circles = circle_d.circles.reshape(1,num,3)
 							print(circle_d.circles)
-							
+
 					d = CircleLayer(d.reshape(1,1,3))
 					cluster_list.append(d)
 		self.layers = cluster_list
@@ -434,7 +460,8 @@ class ClassifierGroup:
 		for classifier in self.classifiers:
 			features += classifier(img)
 		features.cluster()
-		feature_img = features(img.shape)
+		#feature_img = features(img.shape)
+		feature_img = features.choose(img.shape)
 		return feature_img
 
 	def __getitem__(self, idx):
