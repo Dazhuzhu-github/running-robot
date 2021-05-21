@@ -53,6 +53,14 @@ class Transform:
 		pass
 
 
+class Identity:
+	def __init__(self):
+		pass
+	
+	def __call__(self, img):
+		return img
+
+
 class CvtColor(Transform):
 	def __init__(self, type: str):
 		super().__init__()
@@ -70,12 +78,24 @@ class CvtColor(Transform):
 			img = img[:, :, 0] - img[:, :, 1]
 			img[img<=0] = 0
 			return img
+		elif self.type == 'BGR2B-R':
+			img = img[:, :, 0] - img[:, :, 2]
+			img[img<=0] = 0
+			return img
 		elif self.type == 'BGR2G-R':
 			img = img[:, :, 1] - img[:, :, 2]
 			img[img<=0] = 0
 			return img
+		elif self.type == 'BGR2G-B':
+			img = img[:, :, 1] - img[:, :, 0]
+			img[img<=0] = 0
+			return img
 		elif self.type == 'BGR2R-B':
 			img = img[:, :, 2] - img[:, :, 0]
+			img[img<=0] = 0
+			return img
+		elif self.type == 'BGR2R-G':
+			img = img[:, :, 2] - img[:, :, 1]
 			img[img<=0] = 0
 			return img
 		elif self.type == 'BGR2B':
@@ -114,14 +134,18 @@ class AutoScale(Transform):
 
 
 class Blur(Transform):
-	def __init__(self, type: str, **argw):
+	def __init__(self, type: str, *args, **argw):
 		self.type = type
-		self.param = dict(argw)
+		self.args = args
+		self.argw = argw
 
 	def __call__(self, img):
 		if self.type == 'Gaussian':
 			# ksize, sigmaX
-			return cv.GaussianBlur(img, **self.param)
+			return cv.GaussianBlur(img, *self.args, **self.argw)
+		elif self.type == 'BiFilter':
+			# 双边滤波
+			return cv.bilateralFilter(img, *self.args, **self.argw)
 		else:
 			raise TypeError
 
@@ -170,7 +194,7 @@ class Hook:
 			callback: 回调函数
 			args, argw: 回调函数参数
 		"""
-		self.callback = callback if callback is not None else lambda x: x	# 回调函数
+		self.callback = callback if callback is not None else Identity()	# 回调函数
 		self.args = args
 		self.argw = argw			# 函数参数
 
@@ -326,6 +350,31 @@ class Classifier:
 		# 返回绘制出的圆，原图片大小
 		return img * coef
 
+	@staticmethod
+	def color_only(ctype, blur='Gaussian', preview=True):
+		r'''
+		Return a Classifier object, which serves as a baseline.
+
+		Args:
+			ctype(str): color type, to decide the CvtColor method
+			preview(bool): whether to view the img after GaussianBlur
+		'''
+		if blur == 'Gaussian':
+			blur_layer = Blur('Gaussian', ksize=(5, 5), sigmaX=2)
+		elif blur == 'BiFilter':
+			blur_layer = Blur('BiFilter', 9, 75, 75)
+		else:
+			raise ValueError(blur)
+		return Classifier(
+			ModuleList([
+				AutoScale(),
+				CvtColor(ctype),
+				blur_layer,
+				Hook(_view, ctype) if preview else Identity(),
+				HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=200, param2=25),
+			])
+		)
+
 
 class ClassifierGroup:
 	def __init__(self, classifiers: list, **argw):
@@ -349,43 +398,19 @@ class ClassifierGroup:
 
 
 def detect(img):
-	modules1 = ModuleList([
-		AutoScale(),
-		CvtColor('BGR2B-G'),
-		Blur('Gaussian', ksize=(5, 5), sigmaX=2),
-		Hook(_view, 'B-G'),
-		HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=200, param2=25),
-	])
+	classifiers = [
+		Classifier.color_only('BGR2B-G'),
+		Classifier.color_only('BGR2B-R'),
+		Classifier.color_only('BGR2R-B'),
+		Classifier.color_only('BGR2R-G'),
+		Classifier.color_only('BGR2G-B'),
+		Classifier.color_only('BGR2G-R'),
+		Classifier.color_only('BGR2H'),
+		Classifier.color_only('BGR2GRAY'),
+	]
 
-	modules2 = ModuleList([
-		AutoScale(),
-		CvtColor('BGR2G-R'),
-		Blur('Gaussian', ksize=(5, 5), sigmaX=2),
-		Hook(_view, 'G-R'),
-		HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=200, param2=25)
-	])
-
-	modules3 = ModuleList([
-		AutoScale(),
-		CvtColor('BGR2GRAY'),
-		Blur('Gaussian', ksize=(5, 5), sigmaX=2),
-		Hook(_view, 'GRAY'),
-		HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=200, param2=25)
-	])
-
-	modulesF = ModuleList([
-		AutoScale(),
-		CvtColor('BGR2GRAY'),
-		Blur('Gaussian', ksize=(5, 5), sigmaX=2),
-		Hook(_view, 'GRAY'),
-		HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=200, param2=25)
-	])
-
-	cg = ClassifierGroup([
-		Classifier(modules1),
-		Classifier(modules2),
-		Classifier(modules3)
-	])
+	
+	cg = ClassifierGroup(classifiers)
 
 	vote = Classifier(
 		ModuleList([
@@ -397,7 +422,7 @@ def detect(img):
 	for c in cg:
 		circles = c(img)
 		img_ = circles(img)
-		_view(img_)
+		_view(img_, 'single layer')
 	
 	with View.no_view():
 		feature_img = cg(img)
@@ -441,12 +466,12 @@ def detect_base(img):
 	return 0, 0, 0 
 
 
-if __name__ == '__main__' and LOCAL:
-	path = os.path.dirname(os.path.dirname(sys.argv[0])) + r'\data' 
-	path_list = os.listdir(path) #遍历整个文件夹下的文件name并返回一个列表
-	print(path_list)
-	dataset = Dataset(path)
-	dataset.load()
-	for i, img in enumerate(dataset):
-		detect(img)
-	pass
+# if __name__ == '__main__' and LOCAL:
+# 	path = os.path.dirname(os.path.dirname(sys.argv[0])) + r'\data' 
+# 	path_list = os.listdir(path) #遍历整个文件夹下的文件name并返回一个列表
+# 	print(path_list)
+# 	dataset = Dataset(path)
+# 	dataset.load()
+# 	for i, img in enumerate(dataset):
+# 		detect(img)
+# 	pass

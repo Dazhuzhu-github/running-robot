@@ -3,8 +3,9 @@
 
 import subprocess
 from abc import ABCMeta, abstractmethod, ABC
+import numpy as np
 
-def detect(img):
+def detect(img: np.ndarray):
 	a = lambda x: x
 	try:
 		b = 1
