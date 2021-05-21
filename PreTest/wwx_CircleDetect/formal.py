@@ -335,6 +335,45 @@ class CircleModule(Paint):
 		else:
 			raise TypeError
 		return self
+	
+	def cluster(self):
+		#阈值
+		iou = 0.9
+		cluster_list = []
+		for circlelayer in self.layers:
+			circlelayer : CircleLayer
+			for circle in circlelayer.circles[0, :, :]:
+				#circle = [x,y,r]
+				d = circle
+				if len(cluster_list) == 0 :					
+					d = circlelayer(d.reshape(1,1,3))
+					cluster_list.append(d)
+				else:
+					for circle_d in cluster_list:
+						circle_d: CircleLayer
+						origin = circle_d.circles[0, 0, :]
+						iou_a = self.IOU(self, d, origin)
+						if (iou_a<iou) :
+							#将[x,y,z]塞入circle
+							num = circle_d.circles.shape
+							num = num[1]
+							circle_d.circles = np.append(circle_d.circles, d)
+							circle_d.circles.reshape(1,num+1,3)
+						else:
+							d = circlelayer(d.reshape(1,1,3))
+							cluster_list.append(d)
+
+	def IOU(self, a, b):
+		img_a = np.zeros((300, 500), np.uint8)
+		cv.circle(img_a, (a[0], a[1]), a[2], 1, -1)
+		img_b = np.zeros((300, 500), np.uint8)
+		cv.circle(img_b, (a[0], a[1]), a[2], 1, -1)
+		img_cross = np.minimum(img_a, img_b)
+		img_sum = np.maximum(img_a, img_b)
+		cross = img_cross.sum(1)
+		sum = img_sum.sum(1)
+		return cross/sum
+
 
 
 class Classifier:
@@ -397,37 +436,6 @@ class ClassifierGroup:
 
 	def __len__(self):
 		return len(self.classifiers)
-
-	def cluster(self):
-		#阈值
-		iou = 0.9
-		cluster_list = []
-		for circlelayer in self.layers:
-			for circle in circlelayer[0, :, :]:
-				d = circle
-				if len(cluster_list) == 0 :					
-					d = circlelayer(d.reshape(1,1,3))
-					cluster_list.append(d)
-				else :
-					for circle_d in cluster_list :
-						origin = circle_d[0, 0, :]
-						iou_a = self.IOU(self, d, origin)
-						if (iou_a<iou) :
-							circle_d[1].append(d)
-						else:
-							d = circlelayer(d.reshape(1,1,3))
-							cluster_list.append(d)
-
-	def IOU(self, a, b):
-		img_a = np.zeros((300, 300*self.Classifier.coef), np.uint8)
-		cv.circle(img_a, (a[0], a[1]), a[2], 1, -1)
-		img_b = np.zeros((300, 300*self.Classifier.coef), np.uint8)
-		cv.circle(img_b, (a[0], a[1]), a[2], 1, -1)
-		img_cross = np.minimum(img_a, img_b)
-		img_sum = np.maximum(img_a, img_b)
-		cross = img_cross.sum(1)
-		sum = img_sum.sum(1)
-		return cross/sum
 
 
 
