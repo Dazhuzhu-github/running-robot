@@ -16,3 +16,4 @@ if __name__ == '__main__':
 		r, x, y = my.detect(img)
 		cv.circle(img, (int(x), int(y)), int(r), (0, 0, 255), -1)
 		my._view(img, 'result')
+

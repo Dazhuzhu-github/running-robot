@@ -26,8 +26,10 @@ def _view(img, name='view', resize=True, size=300):
 	if resize:
 		img = AutoScale(size)(img)
 	cv.imshow(name, img)
-	cv.waitKey(0)
+	keyboard = cv.waitKey(0)
 	cv.destroyWindow(name)
+	if keyboard == 27:
+		exit(0)
 	return
 
 class View:
@@ -346,32 +348,35 @@ class CircleModule(Paint):
 				#circle = [x,y,r]
 				d = circle
 				if len(cluster_list) == 0 :					
-					d = circlelayer(d.reshape(1,1,3))
+					d = CircleLayer(d.reshape(1,1,3))
 					cluster_list.append(d)
 				else:
 					for circle_d in cluster_list:
 						circle_d: CircleLayer
 						origin = circle_d.circles[0, 0, :]
-						iou_a = self.IOU(self, d, origin)
-						if (iou_a<iou) :
+						iou_a = self.IOU(d, origin)
+						if (iou_a > iou) :
 							#将[x,y,z]塞入circle
 							num = circle_d.circles.shape
 							num = num[1]
+							num = num+1
 							circle_d.circles = np.append(circle_d.circles, d)
-							circle_d.circles.reshape(1,num+1,3)
-						else:
-							d = circlelayer(d.reshape(1,1,3))
-							cluster_list.append(d)
+							circle_d.circles = circle_d.circles.reshape(1,num,3)
+							print(circle_d.circles)
+							
+					d = CircleLayer(d.reshape(1,1,3))
+					cluster_list.append(d)
+		self.layers = cluster_list
 
 	def IOU(self, a, b):
-		img_a = np.zeros((300, 500), np.uint8)
+		img_a = np.zeros((300, 500), np.uint8)		
 		cv.circle(img_a, (a[0], a[1]), a[2], 1, -1)
 		img_b = np.zeros((300, 500), np.uint8)
 		cv.circle(img_b, (b[0], b[1]), b[2], 1, -1)
 		img_cross = np.minimum(img_a, img_b)
 		img_sum = np.maximum(img_a, img_b)
-		cross = img_cross.sum(1)
-		sum = img_sum.sum(1)
+		cross = np.sum(img_cross)
+		sum = np.sum(img_sum)
 		return cross/sum
 
 
@@ -428,6 +433,7 @@ class ClassifierGroup:
 		features = CircleModule()
 		for classifier in self.classifiers:
 			features += classifier(img)
+		features.cluster()
 		feature_img = features(img.shape)
 		return feature_img
 
@@ -445,11 +451,11 @@ def detect(img):
 		Classifier.color_only('BGR2B-G'),
 		Classifier.color_only('BGR2B-R'),
 		Classifier.color_only('BGR2R-B'),
-		Classifier.color_only('BGR2R-G'),
-		Classifier.color_only('BGR2G-B'),
-		Classifier.color_only('BGR2G-R'),
-		Classifier.color_only('BGR2H'),
-		Classifier.color_only('BGR2GRAY'),
+		# Classifier.color_only('BGR2R-G'),
+		# Classifier.color_only('BGR2G-B'),
+		# Classifier.color_only('BGR2G-R'),
+		# Classifier.color_only('BGR2H'),
+		# Classifier.color_only('BGR2GRAY'),
 	]
 
 	
