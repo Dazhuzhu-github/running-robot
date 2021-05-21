@@ -209,7 +209,8 @@ class Hook:
 	def call_x(self, x, *args, **argw):
 		return x(*args, **argw)
 
-	def hook(self, x, name=None, *args, **argw):
+	@staticmethod
+	def hook(x, name=None, *args, **argw):
 		if name is None:
 			raise ValueError('"name" should not be None')
 		Hook.cache[name] = x
@@ -322,25 +323,17 @@ class CircleModule(Paint):
 	def choose(self, shape, num=None):
 		shape = shape[0:2]
 		img = np.zeros(shape)
-		# num = 0 #cluster_list里的第几个
-		# i = 0	#计数i
-		# sum = 0	#count layer里circle的个数
 		circle_nums = np.array([circle_layer.circles.shape[1] for circle_layer in self.layers], dtype=np.int)
-		# for layer in self.layers:
-		# 	layer : CircleLayer
-		# 	n = layer.circles.shape
-		# 	if(sum < n[1]):
-		# 		sum = n[1]
-		# 		num = i
-		# 	i = i+1
-		# n = self.layers[num].shape
-		# color = 1/num if num is not None else 1/n[1]
+		Hook.hook(circle_nums, 'circle_nums')
+		Hook.hook([circle_layer.circles for circle_layer in self.layers], 'circle_layers')
 		if len(circle_nums) == 0:
 			return img
 		else:
 			idx = np.argmax(circle_nums)
-			color = 1/num if num is not None else 1/circle_nums[idx]
-			img += self.layers[idx](shape, color)
+			# color = 1/num if num is not None else 1/circle_nums[idx]
+			Hook.hook(idx, 'idx')
+			# Hook.hook(color, 'color')
+			img += self.layers[idx](shape)
 			return img
 
 	def __call__(self, shape, num=None):
@@ -396,15 +389,14 @@ class CircleModule(Paint):
 
 	def IOU(self, a, b):
 		img_a = np.zeros((300, 500), np.uint8)		
-		cv.circle(img_a, (a[0], a[1]), a[2], 1, -1)
+		cv.circle(img_a, (a[0], a[1]), int(a[2]), 1, -1)
 		img_b = np.zeros((300, 500), np.uint8)
-		cv.circle(img_b, (b[0], b[1]), b[2], 1, -1)
+		cv.circle(img_b, (b[0], b[1]), int(b[2]), 1, -1)
 		img_cross = np.minimum(img_a, img_b)
 		img_sum = np.maximum(img_a, img_b)
 		cross = np.sum(img_cross)
 		sum = np.sum(img_sum)
 		return cross/sum
-
 
 
 class Classifier:
@@ -432,7 +424,7 @@ class Classifier:
 			preview(bool): whether to view the img after GaussianBlur
 		'''
 		if blur == 'Gaussian':
-			blur_layer = Blur('Gaussian', ksize=(5, 5), sigmaX=2)
+			blur_layer = Blur('Gaussian', ksize=(7, 7), sigmaX=3)
 		elif blur == 'BiFilter':
 			blur_layer = Blur('BiFilter', 9, 75, 75)
 		else:
@@ -443,7 +435,7 @@ class Classifier:
 				CvtColor(ctype),
 				blur_layer,
 				Hook(_view, ctype) if preview else Identity(),
-				HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=200, param2=25),
+				HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=130, param1=200, param2=25),
 			])
 		)
 
@@ -478,11 +470,11 @@ def detect(img):
 		Classifier.color_only('BGR2B-G'),
 		Classifier.color_only('BGR2B-R'),
 		Classifier.color_only('BGR2R-B'),
-		# Classifier.color_only('BGR2R-G'),
-		# Classifier.color_only('BGR2G-B'),
-		# Classifier.color_only('BGR2G-R'),
-		# Classifier.color_only('BGR2H'),
-		# Classifier.color_only('BGR2GRAY'),
+		Classifier.color_only('BGR2R-G'),
+		Classifier.color_only('BGR2G-B'),
+		Classifier.color_only('BGR2G-R'),
+		Classifier.color_only('BGR2H'),
+		Classifier.color_only('BGR2GRAY'),
 	]
 
 	
@@ -491,7 +483,7 @@ def detect(img):
 	vote = Classifier(
 		ModuleList([
 			AutoScale(),
-			HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=70, param1=50, param2=10)
+			HoughCircle(dp=1, minDist=150, method=cv.HOUGH_GRADIENT, minRadius=20, maxRadius=130, param1=50, param2=10)
 		])
 	)
 
