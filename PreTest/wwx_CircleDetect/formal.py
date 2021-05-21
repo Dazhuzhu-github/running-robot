@@ -340,12 +340,14 @@ class CircleModule(Paint):
 class Classifier:
 	def __init__(self, modules, **argw):
 		self.modules = modules
+		self.coef : float 
 
 	def __call__(self, img):
 		shape = img.shape[0:2]
 		for module in self.modules:
 			if type(module) == AutoScale:
 				coef = min(shape) / module.size
+				self.coef = coef
 			img = module(img)
 		# 返回绘制出的圆，原图片大小
 		return img * coef
@@ -395,6 +397,39 @@ class ClassifierGroup:
 
 	def __len__(self):
 		return len(self.classifiers)
+
+	def cluster(self):
+		#阈值
+		iou = 0.9
+		cluster_list = []
+		for circlelayer in self.layers:
+			for circle in circlelayer[0, :, :]:
+				d = circle
+				if len(cluster_list) == 0 :					
+					d = circlelayer(d.reshape(1,1,3))
+					cluster_list.append(d)
+				else :
+					for circle_d in cluster_list :
+						origin = circle_d[0, 0, :]
+						iou_a = self.IOU(self, d, origin)
+						if (iou_a<iou) :
+							circle_d[1].append(d)
+						else:
+							d = circlelayer(d.reshape(1,1,3))
+							cluster_list.append(d)
+
+	def IOU(self, a, b):
+		img_a = np.zeros((300, 300*self.Classifier.coef), np.uint8)
+		cv.circle(img_a, (a[0], a[1]), a[2], 1, -1)
+		img_b = np.zeros((300, self.Classifier.coef), np.uint8)
+		cv.circle(img_b, (a[0], a[1]), a[2], 1, -1)
+		img_cross = np.minimum(img_a, img_b)
+		img_sum = np.maximum(img_a, img_b)
+		cross = img_cross.sum(1)
+		sum = img_sum.sum(1)
+		return cross/sum
+
+
 
 
 def detect(img):
