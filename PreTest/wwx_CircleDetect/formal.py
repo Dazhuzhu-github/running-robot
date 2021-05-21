@@ -367,7 +367,7 @@ class CircleModule(Paint):
 		img_a = np.zeros((300, 500), np.uint8)
 		cv.circle(img_a, (a[0], a[1]), a[2], 1, -1)
 		img_b = np.zeros((300, 500), np.uint8)
-		cv.circle(img_b, (a[0], a[1]), a[2], 1, -1)
+		cv.circle(img_b, (b[0], b[1]), b[2], 1, -1)
 		img_cross = np.minimum(img_a, img_b)
 		img_sum = np.maximum(img_a, img_b)
 		cross = img_cross.sum(1)
