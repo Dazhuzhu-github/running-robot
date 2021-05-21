@@ -421,7 +421,7 @@ class ClassifierGroup:
 	def IOU(self, a, b):
 		img_a = np.zeros((300, 300*self.Classifier.coef), np.uint8)
 		cv.circle(img_a, (a[0], a[1]), a[2], 1, -1)
-		img_b = np.zeros((300, self.Classifier.coef), np.uint8)
+		img_b = np.zeros((300, 300*self.Classifier.coef), np.uint8)
 		cv.circle(img_b, (a[0], a[1]), a[2], 1, -1)
 		img_cross = np.minimum(img_a, img_b)
 		img_sum = np.maximum(img_a, img_b)
