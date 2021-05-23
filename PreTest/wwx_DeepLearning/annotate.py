@@ -4,7 +4,6 @@ import cv2
 import json
 import numpy as np
 import re
-from _ctypes import PyObj_FromPtr
 from PyQt5 import QtWidgets, QtCore, QtGui #pyqt stuff
 
 QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True) #enable highdpi scaling
