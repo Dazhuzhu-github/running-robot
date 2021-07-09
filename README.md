@@ -13,6 +13,9 @@ opencv文档： http://woshicver.com/
 
 机器人动作： https://cyberbotics.com/doc/guide/robotis-op2
 
+webot文档：https://cyberbotics.com/doc/guide/tutorial-1-your-first-simulation-in-webots
+
+webot-camera：https://cyberbotics.com/doc/reference/camera?tab-language=python
 ## 虚拟赛
 
 目前进度：
