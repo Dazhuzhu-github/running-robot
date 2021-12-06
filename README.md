@@ -1,6 +1,9 @@
 # running-robot
 
-机器人大赛代码库
+国际自主机器人大赛代码库
+
+后续代码更新在
+https://gitee.com/dazhuzhu-gitee/running-robot
 
 ## 官方比赛链接
 
